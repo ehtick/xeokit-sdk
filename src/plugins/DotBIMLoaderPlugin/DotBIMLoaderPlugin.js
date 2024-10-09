@@ -16,8 +16,8 @@ import {IFCObjectDefaults} from "../../viewer/metadata/IFCObjectDefaults.js";
  * set ````true```` and will be registered by {@link Entity#id} in {@link Scene#objects}.
  * * When loading, can set the World-space position, scale and rotation of each model within World space,
  * along with initial properties for all the model's {@link Entity}s.
- * * Allows to mask which IFC types we want to load.
- * * Allows to configure initial viewer state for specified IFC types (color, visibility, selection, highlighted, X-rayed, pickable, etc).
+ * * Allows to mask which types we want to load.
+ * * Allows to configure initial viewer state for specified types (color, visibility, selection, highlighted, X-rayed, pickable, etc).
  *
  * ## Usage
  *
@@ -87,9 +87,9 @@ import {IFCObjectDefaults} from "../../viewer/metadata/IFCObjectDefaults.js";
  * });
  * ````
  *
- * ## Including and excluding IFC types
+ * ## Including and excluding types
  *
- * We can also load only those objects that have the specified IFC types. In the example below, we'll load only the
+ * We can also load only those objects that have the specified types. In the example below, we'll load only the
  * objects that represent walls.
  *
  * ````javascript
@@ -100,7 +100,7 @@ import {IFCObjectDefaults} from "../../viewer/metadata/IFCObjectDefaults.js";
  * });
  * ````
  *
- * We can also load only those objects that **don't** have the specified IFC types. In the example below, we'll load only the
+ * We can also load only those objects that **don't** have the specified types. In the example below, we'll load only the
  * objects that do not represent empty space.
  *
  * ````javascript
@@ -111,13 +111,13 @@ import {IFCObjectDefaults} from "../../viewer/metadata/IFCObjectDefaults.js";
  * });
  * ````
  *
- * # Configuring initial IFC object appearances
+ * # Configuring initial object appearances
  *
- * We can specify the custom initial appearance of loaded objects according to their IFC types.
+ * We can specify the custom initial appearance of loaded objects according to their types.
  *
  * This is useful for things like:
  *
- * * setting the colors to our objects according to their IFC types,
+ * * setting the colors to our objects according to their types,
  * * automatically hiding ````IfcSpace```` objects, and
  * * ensuring that ````IfcWindow```` objects are always transparent.
  * <br>
@@ -149,7 +149,7 @@ import {IFCObjectDefaults} from "../../viewer/metadata/IFCObjectDefaults.js";
  * });
  * ````
  *
- * When we don't customize the appearance of IFC types, as just above, then IfcSpace elements tend to obscure other
+ * When we don't customize the appearance of types, as just above, then IfcSpace elements tend to obscure other
  * elements, which can be confusing.
  *
  * It's often helpful to make IfcSpaces transparent and unpickable, like this:
@@ -347,55 +347,51 @@ export class DotBIMLoaderPlugin extends Plugin {
             const fileData = ctx.fileData;
             const sceneModel = ctx.sceneModel;
 
-            const dbMeshIndices = {};
             const dbMeshLoaded = {};
 
-            const ifcProjectId = math.createUUID();
-            const ifcSiteId = math.createUUID();
-            const ifcBuildingId = math.createUUID();
-            const ifcBuildingStoryId = math.createUUID();
+            const projectId = math.createUUID();
+            const siteId = math.createUUID();
+            const buildingId = math.createUUID();
+            const buildingStoryId = math.createUUID();
 
             const metaModelData = {
                 metaObjects: [
                     {
-                        id: ifcProjectId,
-                        name: "IfcProject",
-                        type: "IfcProject",
+                        id: projectId,
+                        name: "Project",
+                        type: "Project",
                         parent: null
                     },
                     {
-                        id: ifcSiteId,
-                        name: "IfcSite",
-                        type: "IfcSite",
-                        parent: ifcProjectId
+                        id: siteId,
+                        name: "Site",
+                        type: "Site",
+                        parent: projectId
                     },
                     {
-                        id: ifcBuildingId,
-                        name: "IfcBuilding",
-                        type: "IfcBuilding",
-                        parent: ifcSiteId
+                        id: buildingId,
+                        name: "Building",
+                        type: "Building",
+                        parent: siteId
                     },
                     {
-                        id: ifcBuildingStoryId,
-                        name: "IfcBuildingStorey",
-                        type: "IfcBuildingStorey",
-                        parent: ifcBuildingId
+                        id: buildingStoryId,
+                        name: "BuildingStorey",
+                        type: "BuildingStorey",
+                        parent: buildingId
                     }
                 ],
                 propertySets: []
             };
 
-            for (let i = 0, len = fileData.meshes.length; i < len; i++) {
-                const dbMesh = fileData.meshes[i];
-                dbMeshIndices[dbMesh.mesh_id] = i;
-            }
-
-            const parseDBMesh = (dbMeshId) => {
+            const parseDBMesh = (dbMeshId, element) => {
                 if (dbMeshLoaded[dbMeshId]) {
                     return;
                 }
-                const dbMeshIndex = dbMeshIndices[dbMeshId];
-                const dbMesh = fileData.meshes[dbMeshIndex];
+
+                const dbMesh = fileData.meshes.find(obj => {
+                    return obj.mesh_id === element.mesh_id;
+                });
                 sceneModel.createGeometry({
                     id: dbMeshId,
                     primitive: "triangles",
@@ -434,7 +430,7 @@ export class DotBIMLoaderPlugin extends Plugin {
 
                 if (element.face_colors === undefined) {
 
-                    parseDBMesh(dbMeshId);
+                    parseDBMesh(dbMeshId, element);
 
                     const meshId = `${objectId}-mesh`;
 
@@ -477,7 +473,9 @@ export class DotBIMLoaderPlugin extends Plugin {
                     let faceColors = element.face_colors;
                     let coloredTrianglesDictionary = {};
                     let currentTriangleIndicesCount = 0;
-                    let dbMesh = fileData.meshes[element.mesh_id];
+                    let dbMesh = fileData.meshes.find(obj => {
+                        return obj.mesh_id === element.mesh_id;
+                    });
                     for (let i = 0, len = faceColors.length; i < len; i+=4) {
                         let faceColor = [faceColors[i], faceColors[i+1], faceColors[i+2], faceColors[i+3]];
                         if (coloredTrianglesDictionary[faceColor] === undefined) {
@@ -505,7 +503,7 @@ export class DotBIMLoaderPlugin extends Plugin {
                             id: `${dbMeshId}-${faceColor}`,
                             primitive: "triangles",
                             positions: trianglesCoordinates,
-                            indices: [...Array(trianglesCoordinates.length).keys()]
+                            indices: [...Array(trianglesCoordinates.length / 3).keys()]
                         });
                         const meshId = `${objectId}-mesh-${faceColor}`;
                         const faceColorArray = faceColor.split(',').map(Number);
@@ -547,30 +545,24 @@ export class DotBIMLoaderPlugin extends Plugin {
                     });
                 }
 
+                let properties = [];
                 for (let infoKey in info) {
-                    let properties;
-                    if (infoKey.startsWith("IFC_Pset_")) {
-                        if (!properties) {
-                            properties = [];
-                        }
-                        properties.push({
-                            name: infoKey,
-                            value: info[infoKey]
-                        });
-                    }
-                    if (properties) {
-                        metaModelData.propertySets.push({
-                            id: objectId,
-                            properties
-                        });
-                    }
+                    properties.push({
+                        name: infoKey,
+                        value: info[infoKey]
+                    });
                 }
+                metaModelData.propertySets.push({
+                    id: objectId,
+                    name: "Properties",
+                    properties: properties
+                });
 
                 metaModelData.metaObjects.push({
                     id: objectId,
                     name: info && info.Name && info.Name !== "None" ? info.Name : `${element.type} ${objectId}`,
                     type: element.type,
-                    parent: ifcBuildingStoryId,
+                    parent: buildingStoryId,
                     propertySetIds: [objectId]
                 });
             }
